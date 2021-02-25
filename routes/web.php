@@ -13,6 +13,24 @@
 |
 */
 
+
 $router->get('/', function () use ($router) {
     return $router->app->version();
+});
+
+$router->group(['prefix' => 'api'], function () use ($router) {
+
+    $router->group(['prefix' => 'user'], function () use ($router) {
+        $router->post('register', ['uses' => '\App\Http\Controllers\UserController@register']);
+        $router->post('sign-in', ['uses' => '\App\Http\Controllers\UserController@signIn']);
+        $router->post('recover-password', ['uses' => '\App\Http\Controllers\UserController@recoverPassword']);
+    });
+
+    /*
+     *
+     */
+    $router->group(['prefix' => 'user'/*,'middleware' => 'auth'*/], function () use ($router) {
+        $router->get('companies', ['uses' => '\App\Http\Controllers\CompanyController@getCompanies']);
+        $router->post('companies', ['uses' => '\App\Http\Controllers\CompanyController@addCompanies']);
+    });
 });
