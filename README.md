@@ -1,8 +1,8 @@
 # Description:
 This test task was done to demonstrate a typical REST API web application.
 ## Requirements
-- PHP 7.4
 - Lumen v8.29.0 ( [Lumen documentation](https://lumen.laravel.com/docs) )
+- PHP 7.4
 - PostgresSQL 11.1.x
 # Task:
 Create the RESTFull API to share the companies information for the logged users. Use Stack: Lumen, PostgreSQL.

@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class UserRepository implements UserRepositoryInterface
 {
@@ -43,7 +44,7 @@ class UserRepository implements UserRepositoryInterface
      */
     public function findUserByEmail(string $email)
     {
-        return User::where('email', $email)->first();
+        return User::with('companies')->where('email', $email)->first();
     }
 
     /**
@@ -54,26 +55,36 @@ class UserRepository implements UserRepositoryInterface
     public function checkUserPassword(User $user, string $password)
     {
         if (Hash::check($password, $user->password)) {
-            $apikey = base64_encode(Str::random(40));
-            $user->remember_token = $apikey;
+            $user->remember_token = $this->getHashPassword();
             $user->save();
-
-            return $apikey;
-        }else{
-            return false;
+            return $user->remember_token;
         }
+        return $this->failedValidationPassword();
     }
 
     public function sendRessetToken(User $user)
     {
-        $token = Str::random(62);
+        $token = $this->getToken();
         DB::table('password_resets')->insert([
-            'email'=>$user->email,
-            'token'=> $token,
-            'created_at'=> \Carbon\Carbon::now()
+            'email' => $user->email,
+            'token' => $token,
+            'created_at' => \Carbon\Carbon::now()
         ]);
 
         return $token;
     }
 
+    protected function failedValidationPassword()
+    {
+        throw new HttpResponseException(response()->json(['error' => ['message' => 'Bad Request', 'detail' => 'Wrong password']], 400));
+    }
+
+    private function getToken()
+    {
+        return Str::random(62);
+    }
+    private function getHashPassword()
+    {
+        return base64_encode(Str::random(40));
+    }
 }

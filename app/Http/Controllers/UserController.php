@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\User\RecoverPasswordRequest;
+use App\Http\Requests\User\SigninRequest;
+use App\Http\Requests\user\RegisterRequest;
+use App\Http\Resources\UserResource;
 use App\Repositories\UserRepositoryInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -23,92 +27,48 @@ class UserController extends Controller
         $this->user = $user;
     }
 
-    /**
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    public function register(Request $request): \Illuminate\Http\JsonResponse
+    public function register(RegisterRequest $request): \Illuminate\Http\JsonResponse
     {
-        $validator = Validator::make($request->all(),[
-            'data.type' => 'required|in:user',
-            'data.attributes.first_name' => 'required|max:255',
-            'data.attributes.last_name' => 'required|max:255',
-            'data.attributes.email' => 'required|unique:users,email|email:rfc,dns|max:255',
-            'data.attributes.password' => 'required|max:255',
-            'data.attributes.phone' => 'required|unique:users,phone|max:50'
-        ]);
+        $user = $this->user->addUser($request->validated());
 
-        if ($validator->fails()) {
-            return response()->json(['error' => ['message' => 'Bad Request','detail'=>$validator->errors()]], 400);
-        }
-
-        try {
-            $data = $request->only(['data.attributes.first_name', 'data.attributes.last_name', 'data.attributes.email',
-                'data.attributes.password', 'data.attributes.phone']);
-            $user = $this->user->addUser($data['data']['attributes']);
-
-            return response()
-                ->json(['data' => ['id' => $user->id, 'type' => 'user','attributes' => $data['data']['attributes']]
-                ], 201);
-        } catch (\Exception $e) {
-            return response()->json(['error' => ['message' => 'Bad Request']], 400);
-        }
+        return (UserResource::make($user))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
-     * @param Request $request
+     * @param SigninRequest $signinRequest
      * @return \Illuminate\Http\JsonResponse
-     * @throws \Illuminate\Validation\ValidationException
      */
-    public function signIn(Request $request): \Illuminate\Http\JsonResponse
+    public function signIn(SigninRequest $request): \Illuminate\Http\JsonResponse
     {
-        $validator = Validator::make($request->all(),[
-            'data.type' => 'required|in:user',
-            'data.attributes.email' => 'required|email:rfc,dns|exists:users,email',
-            'data.attributes.password' => 'required'
-        ]);
+        $user = $this->user->findUserByEmail(request('data.attributes.email'));
+        $this->user->checkUserPassword($user, request('data.attributes.password'));
 
-        if ($validator->fails()) {
-            return response()->json(['error' => ['message' => 'Bad Request','detail'=>$validator->errors()]], 400);
-        }
-
-        $data = $request->only(['data.attributes.email', 'data.attributes.password']);
-        $user = $this->user->findUserByEmail($data['data']['attributes']['email']);
-
-        if ($data['data']['attributes']['apikey'] = $this->user->checkUserPassword($user, $data['data']['attributes']['password'])) {
-            unset($data['data']['attributes']['password']);
-            return response()->json(
-                ['data' => ['id' => $user->id, 'type' => 'user','attributes' => $data['data']['attributes']]], 200);
-        } else {
-            return response()->json(['error' => ['message' => 'Bad Request']], 400);
-        }
+        return (UserResource::make($user))
+            ->additional(['meta' => [
+                'apikey' => $user->remember_token
+            ]])
+            ->response()
+            ->setStatusCode(201);
     }
 
+
     /**
-     * Allow to update the password via email token
-     *
-     * @param Request $request
+     * @param RecoverPasswordRequest $request
      * @return \Illuminate\Http\JsonResponse
-     * @throws \Illuminate\Validation\ValidationException
      */
-    public function recoverPassword(Request $request): \Illuminate\Http\JsonResponse
+    public function recoverPassword(RecoverPasswordRequest $request): \Illuminate\Http\JsonResponse
     {
-        $validator = Validator::make($request->all(),[
-            'data.type' => 'required|in:user',
-            'data.attributes.email' => 'required|email:rfc,dns|exists:users,email',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['error' => ['message' => 'Bad Request','detail'=>$validator->errors()]], 400);
-        }
-
-        $data = $request->only(['data.attributes.email']);
-        $user = $this->user->findUserByEmail($data['data']['attributes']['email']);
+        $user = $this->user->findUserByEmail(request('data.attributes.email'));
         $token = $this->user->sendRessetToken($user);
 
-        return response()->json(['meta' => ['message' => ["We send token to your Email: $user->email"]],
-            'data' => ['type' => 'user', 'id' => $user->id,'attributes' => ['email' => $user->email, 'token' => $token]]
-        ], 201);
+        return (UserResource::make($user))
+            ->additional(['meta' => [
+                'message' => "We send token to your Email: $user->email",
+                'token' => $token
+            ]])
+            ->response()
+            ->setStatusCode(201);
     }
 }

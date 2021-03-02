@@ -28,11 +28,11 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
      * @var array
      */
     protected $hidden = [
-        'password',
+        'password','email_verified_at','remember_token'
     ];
 
     public function companies()
     {
-        return $this->hasMany(User::class,'user_id','id');
+        return $this->hasMany(Company::class,'user_id','id');
     }
 }

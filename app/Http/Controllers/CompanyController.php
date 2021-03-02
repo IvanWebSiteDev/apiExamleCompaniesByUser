@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Company\AddCompanyRequest;
+use App\Http\Resources\UserResource;
 use App\Models\Company;
 use App\Models\User;
 use App\Repositories\CompanyRepository;
@@ -39,44 +41,24 @@ class CompanyController extends Controller
      */
     public function getCompanies(): \Illuminate\Http\JsonResponse
     {
-        return response()->json(['data' => ['type' => 'user', 'id' => $this->user->id,
-            "relationships" => ['companies' => $this->company->getCompaniesByUser($this->user)]
-        ]
-        ]);
+        return (UserResource::make($this->user->fresh('companies')))
+            ->response()
+            ->setStatusCode(200);
     }
 
     /**
-     * @param Request $request
+     * @param AddCompanyRequest $request
      * @return \Illuminate\Http\JsonResponse
-     * @throws \Illuminate\Validation\ValidationException
      */
-    public function addCompanies(Request $request): \Illuminate\Http\JsonResponse
+    public function addCompanies(AddCompanyRequest $request): \Illuminate\Http\JsonResponse
     {
-        $validator = Validator::make($request->all(),[
-            'data.type' => 'required|in:user',
-            'data.relationships.companies.data.type' => 'required|in:company',
-            'data.relationships.companies.data.title' => 'required|max:350',
-            'data.relationships.companies.data.phone' => 'required|max:50',
-            'data.relationships.companies.data.description' => 'required|max:550'
-        ]);
+        $this->company->addCompany($this->user, $request->validated());
 
-        if ($validator->fails()) {
-            return response()->json(['error' => ['message' => 'Bad Request','detail'=>$validator->errors()]], 400);
-        }
-
-        $data = $request->only(['data.relationships.companies.data.title', 'data.relationships.companies.data.phone',
-            'data.relationships.companies.data.description']);
-
-        if ($company = $this->company->addCompany($this->user, $data['data']['relationships']['companies']['data'])) {
-
-            $data['data']['relationships']['companies']['data']['id'] = $company->id;
-            $data['data']['relationships']['companies']['data']['type'] = 'company';
-
-            return response()->json(['meta' => ['message' => 'You add company: ' . $data['data']['relationships']['companies']['data']['title'],],
-                'data' => ['id' => $this->user->id, 'type' => 'user', 'relationships' => $data['data']['relationships']
-                ]], 201);
-        } else {
-            return response()->json(['error' => ['message' => 'Bad Request']], 400);
-        }
+        return (UserResource::make($this->user->fresh('companies')))
+            ->additional(['meta' => [
+                'message' => 'You add company: ' . $request->validated()['title'],
+            ]])
+            ->response()
+            ->setStatusCode(201);
     }
 }
